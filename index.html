@@ -382,8 +382,8 @@ let expanded = false;
 const REFRESH_MS = 60000;
 const TARGET = 'https://m.pocketoption.com/en/assets-otc/';
 const PROXIES = [
+  {name:'CF-Worker', build: u => `https://steep-dew-9745.ebhomebasebiz.workers.dev/?url=${encodeURIComponent(u)}`},
   {name:'cors.lol', build: u => `https://api.cors.lol/url=${encodeURIComponent(u)}`},
-  {name:'Corsfix', build: u => `https://proxy.corsfix.com/?${encodeURIComponent(u)}`},
   {name:'CodeTabs', build: u => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`},
 ];
 
