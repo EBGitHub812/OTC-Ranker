@@ -9,7 +9,579 @@
 
 :root{
   --bg: #0B1A2C;
+  --bg2: #081320;<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OTC Payout Ranker · Live</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --bg: #0B1A2C;
   --bg2: #081320;
+  --panel: #122541;
+  --panel-edge: #1E3A5F;
+  --text: #E8EEF9;
+  --muted: #7C93B8;
+  --gold: #F2B84B;
+  --teal: #4FD1C5;
+  --coral: #E8694A;
+  --track: #0D2238;
+}
+
+*{ box-sizing: border-box; }
+
+body{
+  margin:0;
+  background: radial-gradient(circle at 20% -10%, #14304f 0%, var(--bg) 45%) , var(--bg);
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,h2{ font-family:'Space Grotesk', sans-serif; margin:0; }
+
+/* ---------- topbar ---------- */
+.topbar{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:space-between;
+  align-items:center;
+  gap:14px;
+  padding:18px 20px;
+  border-bottom:1px solid var(--panel-edge);
+  background: linear-gradient(180deg, #0F2138, transparent);
+}
+.brand{ display:flex; align-items:center; gap:12px; }
+.brand svg{ flex-shrink:0; }
+.brand h1{ font-size:1.25rem; letter-spacing:.02em; }
+.brand .sub{ margin:2px 0 0; color:var(--muted); font-size:.78rem; letter-spacing:.05em; text-transform:uppercase; }
+
+.status{ display:flex; flex-direction:column; align-items:flex-end; gap:6px; font-size:.78rem; color:var(--muted); }
+.live-row{ display:flex; align-items:center; gap:8px; }
+.status-dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.status-dot.live{ background:var(--teal); animation: pulse-teal 2s infinite; }
+.status-dot.stale{ background:var(--coral); animation: pulse-coral 2s infinite; }
+.status-dot.checking{ background:var(--gold); animation: pulse-gold 1.1s infinite; }
+@keyframes pulse-teal{ 0%{box-shadow:0 0 0 0 rgba(79,209,197,.55);} 70%{box-shadow:0 0 0 7px rgba(79,209,197,0);} 100%{box-shadow:0 0 0 0 rgba(79,209,197,0);} }
+@keyframes pulse-coral{ 0%{box-shadow:0 0 0 0 rgba(232,105,74,.55);} 70%{box-shadow:0 0 0 7px rgba(232,105,74,0);} 100%{box-shadow:0 0 0 0 rgba(232,105,74,0);} }
+@keyframes pulse-gold{ 0%{box-shadow:0 0 0 0 rgba(242,184,75,.55);} 70%{box-shadow:0 0 0 5px rgba(242,184,75,0);} 100%{box-shadow:0 0 0 0 rgba(242,184,75,0);} }
+#status-text{ font-weight:600; letter-spacing:.04em; }
+#refresh-btn{
+  background:var(--panel); border:1px solid var(--panel-edge); color:var(--text);
+  font-family:'IBM Plex Mono'; font-size:.72rem; letter-spacing:.04em;
+  padding:4px 10px; border-radius:5px; cursor:pointer;
+}
+#refresh-btn:hover{ border-color:var(--teal); color:var(--teal); }
+#refresh-btn:disabled{ opacity:.5; cursor:default; }
+
+/* ---------- layout ---------- */
+.boards{
+  display:grid;
+  grid-template-columns: 1.1fr 1.6fr 1.1fr;
+  grid-template-areas: "left ladder right";
+  gap:16px;
+  padding:18px 20px 40px;
+  max-width:1400px;
+  margin:0 auto;
+}
+.left, .right{ display:flex; flex-direction:column; gap:16px; }
+.left{ grid-area:left; }
+.right{ grid-area:right; }
+.ladder-wrap{ grid-area:ladder; }
+
+@media (max-width: 980px){
+  .boards{ grid-template-columns: 1fr; grid-template-areas: "ladder" "left" "right"; }
+  .topbar{ flex-direction:column; align-items:flex-start; }
+  .status{ align-items:flex-start; }
+}
+
+/* ---------- panels ---------- */
+.panel, .ladder{
+  background: var(--panel);
+  border:1px solid var(--panel-edge);
+  border-radius:10px;
+  padding:14px 14px 10px;
+}
+.panel h2, .ladder h2{
+  font-size:.95rem; letter-spacing:.04em;
+  display:flex; align-items:baseline; justify-content:space-between;
+  margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--panel-edge);
+}
+.panel h2 span.count, .ladder h2 span.count{ font-size:.72rem; color:var(--muted); font-weight:400; }
+
+/* mini list rows (category panels) */
+.mini-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; min-height:40px; }
+.mini-list li{
+  display:grid; grid-template-columns: 1.4em 1fr 64px 46px;
+  align-items:center; gap:8px; font-size:.82rem;
+}
+.mini-list .rk{ color:var(--muted); font-size:.75rem; }
+.mini-list .nm{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mini-list .nm small{ color:var(--muted); display:block; font-size:.68rem; margin-top:-1px; }
+.mini-track{ height:6px; border-radius:4px; background:var(--track); overflow:hidden; }
+.mini-fill{ height:100%; border-radius:4px; }
+.mini-list .pc{ text-align:right; font-weight:600; }
+
+/* tier colors */
+.tier-gold .mini-fill, .tier-gold .bar-fill{ background: linear-gradient(90deg, #C98F2A, var(--gold)); }
+.tier-teal .mini-fill, .tier-teal .bar-fill{ background: linear-gradient(90deg, #2C8A82, var(--teal)); }
+.tier-coral .mini-fill, .tier-coral .bar-fill{ background: linear-gradient(90deg, #B5482F, var(--coral)); }
+.tier-gold .pc{ color:var(--gold); }
+.tier-teal .pc{ color:var(--teal); }
+.tier-coral .pc{ color:var(--coral); }
+
+/* ---------- master ladder ---------- */
+.ladder-list{ display:flex; flex-direction:column; gap:6px; max-height:560px; overflow-y:auto; padding-right:4px; min-height:80px; }
+.row{
+  display:grid; grid-template-columns: 28px 1fr 56px;
+  align-items:center; gap:10px; padding:6px 8px; border-radius:6px; background: var(--bg2);
+}
+.row .rank{ color:var(--muted); font-size:.72rem; text-align:center; }
+.row .mid{ display:flex; flex-direction:column; gap:4px; }
+.row .top-line{ display:flex; align-items:center; gap:6px; }
+.avail-dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.avail-dot.on{ background:var(--teal); }
+.avail-dot.off{ background:var(--muted); }
+.row .code{ font-weight:600; font-size:.84rem; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.row .cat-tag{
+  font-size:.62rem; color:var(--muted); text-transform:uppercase; letter-spacing:.06em;
+  border:1px solid var(--panel-edge); border-radius:4px; padding:1px 5px; white-space:nowrap;
+}
+.bar-track{ height:8px; border-radius:5px; background:var(--track); position:relative; overflow:hidden; }
+.bar-fill{ height:100%; border-radius:5px; position:relative; }
+.bar-fill::after{ content:""; position:absolute; inset:0; background: linear-gradient(180deg, rgba(255,255,255,.35), transparent 55%); }
+.row .pc{ text-align:right; font-weight:700; font-size:.9rem; display:flex; flex-direction:column; align-items:flex-end; line-height:1.1; }
+.row.high .pc::before{ content:"\2191 high"; font-size:.6rem; font-weight:500; color:var(--gold); order:-1; }
+.delta{ font-size:.65rem; font-weight:500; }
+.delta.up{ color:var(--teal); }
+.delta.down{ color:var(--coral); }
+.delta.flat{ color:var(--muted); }
+
+.show-more{
+  margin-top:10px; width:100%; padding:9px;
+  background:var(--bg2); border:1px solid var(--panel-edge); border-radius:6px;
+  color:var(--teal); font-family:'IBM Plex Mono'; font-size:.8rem; letter-spacing:.04em; cursor:pointer;
+}
+.show-more:hover{ border-color:var(--teal); }
+
+/* ---------- legend / footer ---------- */
+.legend{ display:flex; flex-wrap:wrap; gap:14px; font-size:.72rem; color:var(--muted); padding:0 20px 12px; max-width:1400px; margin:0 auto; }
+.legend .key{ display:flex; align-items:center; gap:6px; }
+.legend .swatch{ width:10px; height:10px; border-radius:3px; }
+.legend .gold{ background:var(--gold); }
+.legend .teal{ background:var(--teal); }
+.legend .coral{ background:var(--coral); }
+.refresh-note{ max-width:1400px; margin:0 auto; padding:0 20px 32px; color:var(--muted); font-size:.75rem; line-height:1.6; }
+.refresh-note b{ color:var(--text); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+      <circle cx="17" cy="17" r="16" stroke="#F2B84B" stroke-width="1.4"/>
+      <path d="M4 13 Q 11 9, 17 13 T 30 13" stroke="#4FD1C5" stroke-width="1.6" fill="none"/>
+      <path d="M4 19 Q 11 15, 17 19 T 30 19" stroke="#4FD1C5" stroke-width="1.2" fill="none" opacity="0.55"/>
+      <path d="M4 25 Q 11 21, 17 25 T 30 25" stroke="#4FD1C5" stroke-width="1" fill="none" opacity="0.3"/>
+    </svg>
+    <div>
+      <h1>OTC Payout Ranker</h1>
+      <p class="sub">Pocket Option · live schedule pull</p>
+    </div>
+  </div>
+  <div class="status">
+    <div class="live-row">
+      <span class="status-dot checking" id="status-dot"></span>
+      <span id="status-text">Connecting…</span>
+      <button id="refresh-btn">Refresh now</button>
+    </div>
+    <span id="updated-text">Showing captured snapshot · 18:20 UTC+2 · 29 Aug 2026</span>
+    <div id="diag-log" style="font-size:.68rem; color:var(--muted); text-align:right; margin-top:2px;"></div>
+  </div>
+</div>
+
+<div class="boards">
+  <div class="left">
+    <div class="panel" id="panel-fx">
+      <h2>FX Pairs <span class="count" id="fx-count"></span></h2>
+      <ol class="mini-list" id="fx-list"></ol>
+    </div>
+    <div class="panel" id="panel-commodities">
+      <h2>Commodities <span class="count" id="comm-count"></span></h2>
+      <ol class="mini-list" id="comm-list"></ol>
+    </div>
+  </div>
+
+  <div class="ladder-wrap">
+    <div class="ladder">
+      <h2>Full Payout Ladder <span class="count" id="ladder-count"></span></h2>
+      <div class="ladder-list" id="ladder-list"></div>
+      <button class="show-more" id="show-more">Show all instruments</button>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="panel" id="panel-crypto">
+      <h2>Crypto <span class="count" id="crypto-count"></span></h2>
+      <ol class="mini-list" id="crypto-list"></ol>
+    </div>
+    <div class="panel" id="panel-stocks">
+      <h2>Stocks <span class="count" id="stocks-count"></span></h2>
+      <ol class="mini-list" id="stocks-list"></ol>
+    </div>
+    <div class="panel" id="panel-indices">
+      <h2>Indices <span class="count" id="indices-count"></span></h2>
+      <ol class="mini-list" id="indices-list"></ol>
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  <span class="key"><span class="swatch gold"></span> within 4 pts of today's max &mdash; high tide</span>
+  <span class="key"><span class="swatch teal"></span> 65&ndash;max-4% &mdash; rising</span>
+  <span class="key"><span class="swatch coral"></span> &lt;65% &mdash; low tide</span>
+  <span class="key"><span class="avail-dot on" style="display:inline-block;"></span> tradable now &nbsp; <span class="avail-dot off" style="display:inline-block;"></span> unavailable</span>
+  <span class="key"><span class="delta up">&#9650;</span> payout rose / <span class="delta down">&#9660;</span> fell since last pull</span>
+</div>
+
+<div class="refresh-note">
+  <b>Live data:</b> this page pulls Pocket Option's OTC schedule through a public CORS proxy every 60 seconds (and on demand via
+  "Refresh now"). If the status badge says <b>STALE</b>, the proxy or page layout changed &mdash; the ladder keeps showing the last
+  good pull until the next success. To adjust refresh speed, edit <code>REFRESH_MS</code> near the top of the script block.
+</div>
+
+<script>
+/* ---------------- catalog & initial snapshot ---------------- */
+const ASSETS = [
+  // FX — snapshot: 29 Aug 2026 18:20 UTC+2
+  {code:"EUR/USD", cat:"FX", payout:92},
+  {code:"AUD/CAD", cat:"FX", payout:87},
+  {code:"AUD/CHF", cat:"FX", payout:92},
+  {code:"AUD/JPY", cat:"FX", payout:36},
+  {code:"AUD/NZD", cat:"FX", payout:66},
+  {code:"AUD/USD", cat:"FX", payout:87},
+  {code:"CAD/CHF", cat:"FX", payout:84},
+  {code:"CAD/JPY", cat:"FX", payout:50},
+  {code:"CHF/JPY", cat:"FX", payout:92},
+  {code:"EUR/CHF", cat:"FX", payout:92},
+  {code:"EUR/GBP", cat:"FX", payout:29},
+  {code:"EUR/JPY", cat:"FX", payout:92},
+  {code:"EUR/NZD", cat:"FX", payout:92},
+  {code:"GBP/AUD", cat:"FX", payout:92},
+  {code:"GBP/JPY", cat:"FX", payout:67},
+  {code:"GBP/USD", cat:"FX", payout:71},
+  {code:"NZD/JPY", cat:"FX", payout:85},
+  {code:"NZD/USD", cat:"FX", payout:79},
+  {code:"USD/CAD", cat:"FX", payout:77},
+  {code:"USD/CHF", cat:"FX", payout:92},
+  {code:"USD/JPY", cat:"FX", payout:92},
+  {code:"USD/RUB", cat:"FX", payout:81},
+  {code:"EUR/RUB", cat:"FX", payout:82},
+  {code:"CHF/NOK", cat:"FX", payout:71},
+  {code:"EUR/HUF", cat:"FX", payout:91},
+  {code:"USD/CNH", cat:"FX", payout:92},
+  {code:"EUR/TRY", cat:"FX", payout:92},
+  {code:"USD/INR", cat:"FX", payout:62},
+  {code:"USD/SGD", cat:"FX", payout:57},
+  {code:"USD/CLP", cat:"FX", payout:62},
+  {code:"USD/MYR", cat:"FX", payout:76},
+  {code:"USD/THB", cat:"FX", payout:49},
+  {code:"USD/VND", cat:"FX", payout:92},
+  {code:"USD/PKR", cat:"FX", payout:92},
+  {code:"USD/COP", cat:"FX", payout:92},
+  {code:"USD/EGP", cat:"FX", payout:92},
+  {code:"USD/PHP", cat:"FX", payout:52},
+  {code:"USD/MXN", cat:"FX", payout:92},
+  {code:"USD/DZD", cat:"FX", payout:55},
+  {code:"USD/ARS", cat:"FX", payout:92},
+  {code:"USD/IDR", cat:"FX", payout:66},
+  {code:"USD/BRL", cat:"FX", payout:74},
+  {code:"USD/BDT", cat:"FX", payout:82},
+  {code:"YER/USD", cat:"FX", payout:59},
+  {code:"LBP/USD", cat:"FX", payout:89},
+  {code:"TND/USD", cat:"FX", payout:73},
+  {code:"MAD/USD", cat:"FX", payout:32},
+  {code:"BHD/CNY", cat:"FX", payout:33},
+  {code:"AED/CNY", cat:"FX", payout:92},
+  {code:"SAR/CNY", cat:"FX", payout:85},
+  {code:"QAR/CNY", cat:"FX", payout:81},
+  {code:"OMR/CNY", cat:"FX", payout:91},
+  {code:"JOD/CNY", cat:"FX", payout:59},
+  {code:"NGN/USD", cat:"FX", payout:92},
+  {code:"KES/USD", cat:"FX", payout:86},
+  {code:"ZAR/USD", cat:"FX", payout:54},
+  {code:"UAH/USD", cat:"FX", payout:92},
+
+  // Commodities
+  {code:"Gold", cat:"Commodities", payout:80},
+  {code:"Brent Oil", cat:"Commodities", payout:80},
+  {code:"WTI Crude Oil", cat:"Commodities", payout:80},
+  {code:"Silver", cat:"Commodities", payout:80},
+  {code:"Natural Gas", cat:"Commodities", payout:45},
+  {code:"Platinum spot", cat:"Commodities", payout:45},
+  {code:"Palladium spot", cat:"Commodities", payout:45},
+
+  // Stocks
+  {code:"Apple", cat:"Stocks", payout:81},
+  {code:"McDonald's", cat:"Stocks", payout:44},
+  {code:"Microsoft", cat:"Stocks", payout:80},
+  {code:"FACEBOOK INC", cat:"Stocks", payout:51, desc:"Meta"},
+  {code:"Intel", cat:"Stocks", payout:81},
+  {code:"Tesla", cat:"Stocks", payout:85},
+  {code:"Pfizer Inc", cat:"Stocks", payout:43},
+  {code:"Johnson & Johnson", cat:"Stocks", payout:66},
+  {code:"Boeing Company", cat:"Stocks", payout:46},
+  {code:"American Express", cat:"Stocks", payout:92},
+  {code:"Amazon", cat:"Stocks", payout:92},
+  {code:"Citigroup Inc", cat:"Stocks", payout:73},
+  {code:"FedEx", cat:"Stocks", payout:84},
+  {code:"VISA", cat:"Stocks", payout:92},
+  {code:"Cisco", cat:"Stocks", payout:49},
+  {code:"ExxonMobil", cat:"Stocks", payout:70},
+  {code:"Alibaba", cat:"Stocks", payout:88},
+  {code:"Netflix", cat:"Stocks", payout:66},
+  {code:"VIX", cat:"Stocks", payout:55},
+  {code:"Palantir Technologies", cat:"Stocks", payout:92},
+  {code:"GameStop Corp", cat:"Stocks", payout:74},
+  {code:"Advanced Micro Devices", cat:"Stocks", payout:42, desc:"AMD"},
+  {code:"Coinbase Global", cat:"Stocks", payout:92},
+  {code:"Marathon Digital Holdings", cat:"Stocks", payout:92},
+
+  // Indices
+  {code:"AUS 200", cat:"Indices", payout:67, desc:"ASX 200"},
+  {code:"E35EUR", cat:"Indices", payout:45, desc:"IBEX 35"},
+  {code:"100GBP", cat:"Indices", payout:45, desc:"FTSE 100"},
+  {code:"F40EUR", cat:"Indices", payout:45, desc:"CAC 40"},
+  {code:"JPN225", cat:"Indices", payout:45, desc:"Nikkei 225"},
+  {code:"D30EUR", cat:"Indices", payout:45, desc:"DAX 30"},
+  {code:"E50EUR", cat:"Indices", payout:45, desc:"Euro Stoxx 50"},
+  {code:"SP500", cat:"Indices", payout:45, desc:"S&P 500"},
+  {code:"DJI30", cat:"Indices", payout:45, desc:"Dow Jones 30"},
+  {code:"US100", cat:"Indices", payout:45, desc:"Nasdaq 100"},
+
+  // Crypto
+  {code:"BNB", cat:"Crypto", payout:78},
+  {code:"Solana", cat:"Crypto", payout:92},
+  {code:"Cardano", cat:"Crypto", payout:60},
+  {code:"TRON", cat:"Crypto", payout:79},
+  {code:"Chainlink", cat:"Crypto", payout:66},
+  {code:"Toncoin", cat:"Crypto", payout:92},
+  {code:"Avalanche", cat:"Crypto", payout:69},
+  {code:"Bitcoin", cat:"Crypto", payout:69},
+  {code:"Dogecoin", cat:"Crypto", payout:92},
+  {code:"Polkadot", cat:"Crypto", payout:66},
+  {code:"Ethereum", cat:"Crypto", payout:92},
+  {code:"Litecoin", cat:"Crypto", payout:45},
+  {code:"Polygon", cat:"Crypto", payout:44},
+  {code:"Bitcoin ETF", cat:"Crypto", payout:73},
+];
+
+// catalog: normalized name -> {cat, desc} for re-categorizing live pulls
+const CATALOG = {};
+ASSETS.forEach(a => { CATALOG[a.code.toUpperCase()] = {cat: a.cat, desc: a.desc || null}; });
+
+let current = ASSETS.map(a => ({...a, available:true}));
+let prevPayouts = {};
+ASSETS.forEach(a => prevPayouts[a.code.toUpperCase()] = a.payout);
+let expanded = false;
+
+/* ---------------- live fetch + parse ---------------- */
+const REFRESH_MS = 60000;
+const TARGET = 'https://m.pocketoption.com/en/assets-otc/';
+const PROXIES = [
+  {name:'CodeTabs', build: u => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`},
+  {name:'AllOrigins', build: u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`},
+  {name:'CorsProxy.io', build: u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`},
+];
+
+let lastAttempts = [];
+
+async function fetchScheduleHTML(){
+  lastAttempts = [];
+  for (const proxy of PROXIES){
+    const entry = {name: proxy.name, ok:false, detail:'', time: new Date().toLocaleTimeString()};
+    try{
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 12000);
+      const res = await fetch(proxy.build(TARGET), {signal: ctrl.signal, cache:'no-store'});
+      clearTimeout(timer);
+      if (!res.ok){
+        entry.detail = `HTTP ${res.status}`;
+        lastAttempts.push(entry);
+        continue;
+      }
+      const html = await res.text();
+      if (html && html.length > 2000 && html.indexOf('OTC') !== -1){
+        entry.ok = true;
+        entry.detail = `${(html.length/1024).toFixed(0)}KB received`;
+        lastAttempts.push(entry);
+        return html;
+      } else {
+        entry.detail = 'response too short / unexpected content';
+        lastAttempts.push(entry);
+      }
+    } catch(e){
+      entry.detail = (e && e.name === 'AbortError') ? 'timed out (12s)' : (e.message || 'fetch failed');
+      lastAttempts.push(entry);
+    }
+  }
+  return null;
+}
+
+function parseSchedule(html){
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const text = (doc.body ? doc.body.textContent : '') || '';
+  const re = /([A-Za-z0-9&'.\/ ]{2,42}?OTC)\s*Asset is (available|not available) for trading at the moment[\s\S]{0,150}?(\d{1,3})%/g;
+  const out = [];
+  let m;
+  while ((m = re.exec(text)) !== null){
+    const name = m[1].replace(/\s*OTC$/,'').trim();
+    const meta = CATALOG[name.toUpperCase()] || {cat:'Other', desc:null};
+    out.push({code:name, cat:meta.cat, desc:meta.desc, payout:Number(m[3]), available: m[2]==='available'});
+  }
+  return out;
+}
+
+/* ---------------- rendering ---------------- */
+function tier(p){
+  const max = Math.max(...current.map(a => a.payout));
+  if (p >= max - 4) return 'gold';
+  if (p >= 65) return 'teal';
+  return 'coral';
+}
+
+function deltaHTML(code, payout){
+  const prev = prevPayouts[code.toUpperCase()];
+  if (prev === undefined || prev === payout) return '<span class="delta flat">&#8212;</span>';
+  if (payout > prev) return `<span class="delta up">&#9650; +${payout-prev}</span>`;
+  return `<span class="delta down">&#9660; ${payout-prev}</span>`;
+}
+
+function renderMini(listId, countId, catName, limit){
+  const items = current.filter(a => a.cat === catName).sort((a,b) => b.payout - a.payout).slice(0, limit);
+  const ol = document.getElementById(listId);
+  ol.innerHTML = '';
+  items.forEach((a, i) => {
+    const li = document.createElement('li');
+    li.className = 'tier-' + tier(a.payout);
+    li.innerHTML = `
+      <span class="rk">${i+1}</span>
+      <span class="nm">${a.code}${a.desc ? `<small>${a.desc}</small>` : ''}</span>
+      <span class="mini-track"><span class="mini-fill" style="width:${a.payout}%"></span></span>
+      <span class="pc">${a.payout}%</span>
+    `;
+    ol.appendChild(li);
+  });
+  document.getElementById(countId).textContent = `top ${items.length}`;
+}
+
+function renderLadder(){
+  const sorted = [...current].sort((a,b) => b.payout - a.payout);
+  const max = Math.max(...current.map(a => a.payout));
+  const list = document.getElementById('ladder-list');
+  list.innerHTML = '';
+  document.getElementById('ladder-count').textContent = `${sorted.length} instruments`;
+
+  sorted.forEach((a, i) => {
+    const row = document.createElement('div');
+    row.className = 'row tier-' + tier(a.payout) + (a.payout >= max - 4 ? ' high' : '');
+    if (i >= 20 && !expanded) row.style.display = 'none';
+    row.innerHTML = `
+      <span class="rank">${i+1}</span>
+      <div class="mid">
+        <div class="top-line">
+          <span class="avail-dot ${a.available ? 'on' : 'off'}"></span>
+          <span class="code">${a.code}${a.desc ? ' &middot; ' + a.desc : ''}</span>
+          <span class="cat-tag">${a.cat}</span>
+        </div>
+        <span class="bar-track"><span class="bar-fill" style="width:${a.payout}%"></span></span>
+      </div>
+      <span class="pc">${a.payout}% ${deltaHTML(a.code, a.payout)}</span>
+    `;
+    list.appendChild(row);
+  });
+
+  const btn = document.getElementById('show-more');
+  btn.textContent = expanded ? 'Show top 20 only' : `Show all ${sorted.length} instruments`;
+}
+
+function renderAll(){
+  renderLadder();
+  renderMini('fx-list', 'fx-count', 'FX', 8);
+  renderMini('crypto-list', 'crypto-count', 'Crypto', 8);
+  renderMini('stocks-list', 'stocks-count', 'Stocks', 8);
+  renderMini('comm-list', 'comm-count', 'Commodities', 7);
+  renderMini('indices-list', 'indices-count', 'Indices', 6);
+}
+
+/* ---------------- status + refresh loop ---------------- */
+const dot = document.getElementById('status-dot');
+const statusText = document.getElementById('status-text');
+const updatedText = document.getElementById('updated-text');
+const refreshBtn = document.getElementById('refresh-btn');
+
+function setStatus(state, when){
+  dot.className = 'status-dot ' + state;
+  if (state === 'live'){
+    statusText.textContent = 'LIVE';
+    updatedText.textContent = 'Updated ' + when;
+  } else if (state === 'stale'){
+    statusText.textContent = 'STALE';
+    updatedText.textContent = 'Last good pull: ' + when + ' — proxy or page layout may have changed';
+  } else {
+    statusText.textContent = 'Checking…';
+  }
+}
+
+let lastGood = '18:20 UTC+2 · 29 Aug 2026 (captured snapshot)';
+
+function renderDiag(){
+  const el = document.getElementById('diag-log');
+  if (!lastAttempts.length){ el.textContent = ''; return; }
+  el.textContent = lastAttempts.map(a => `${a.name}: ${a.ok ? 'OK' : 'failed'} (${a.detail})`).join('  ·  ');
+}
+
+async function refresh(){
+  refreshBtn.disabled = true;
+  setStatus('checking');
+  const html = await fetchScheduleHTML();
+  renderDiag();
+  if (html){
+    const parsed = parseSchedule(html);
+    if (parsed.length >= 40){
+      const newPrev = {};
+      parsed.forEach(a => newPrev[a.code.toUpperCase()] = a.payout);
+      current = parsed;
+      renderAll();
+      prevPayouts = newPrev;
+      lastGood = new Date().toLocaleTimeString();
+      setStatus('live', lastGood);
+      refreshBtn.disabled = false;
+      return;
+    }
+  }
+  setStatus('stale', lastGood);
+  refreshBtn.disabled = false;
+}
+
+document.getElementById('show-more').addEventListener('click', () => {
+  expanded = !expanded;
+  renderLadder();
+});
+refreshBtn.addEventListener('click', refresh);
+
+renderAll();
+refresh();
+setInterval(refresh, REFRESH_MS);
+</script>
+
+</body>
+</html>
+
   --panel: #122541;
   --panel-edge: #1E3A5F;
   --text: #E8EEF9;
